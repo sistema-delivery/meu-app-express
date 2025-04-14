@@ -1,10 +1,17 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors'); // <- Importando o CORS
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Recupera a URI do MongoDB a partir dos Secrets do Replit
+// Middleware para aceitar requisições de outros domínios (como seu HTML local)
+app.use(cors());
+
+// Middleware para interpretar JSON
+app.use(express.json());
+
+// Conexão com o MongoDB
 const mongoURI = process.env.MONGO_URI;
 
 if (!mongoURI) {
@@ -12,7 +19,6 @@ if (!mongoURI) {
   process.exit(1);
 }
 
-// Conectando ao MongoDB
 mongoose.connect(mongoURI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -23,37 +29,31 @@ mongoose.connect(mongoURI, {
   process.exit(1);
 });
 
-// Definir o modelo de Usuário
-const usuarioSchema = new mongoose.Schema({
-  nome: { type: String, required: true },
-  email: { type: String, required: true },
-});
+// Modelo simples para "usuarios"
+const Usuario = mongoose.model('Usuario', new mongoose.Schema({
+  nome: String,
+  email: String,
+}));
 
-const Usuario = mongoose.model('Usuario', usuarioSchema);
-
-// Middleware para interpretar JSON
-app.use(express.json());
-
-// Rota simples para teste
+// Rota GET básica
 app.get('/', (req, res) => {
   res.send('Olá, mundo! Seu servidor Node.js está rodando e conectado ao MongoDB.');
 });
 
-// Rota POST para criar um novo usuário
+// Rota POST para criar usuário
 app.post('/usuarios', async (req, res) => {
   const { nome, email } = req.body;
 
-  // Verifica se os campos estão preenchidos
   if (!nome || !email) {
     return res.status(400).json({ message: 'Nome e email são obrigatórios' });
   }
 
   try {
     const novoUsuario = new Usuario({ nome, email });
-    await novoUsuario.save();  // Salva no banco de dados
+    await novoUsuario.save();
     res.status(201).json({ message: 'Usuário criado com sucesso', usuario: novoUsuario });
-  } catch (error) {
-    res.status(500).json({ message: 'Erro ao criar usuário', error });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao salvar o usuário', error: err.message });
   }
 });
 
