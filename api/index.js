@@ -1,17 +1,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors'); // <- Importando o CORS
+const cors = require('cors');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware para aceitar requisições de outros domínios (como seu HTML local)
 app.use(cors());
-
-// Middleware para interpretar JSON
 app.use(express.json());
 
-// Conexão com o MongoDB
 const mongoURI = process.env.MONGO_URI;
 
 if (!mongoURI) {
@@ -29,18 +25,15 @@ mongoose.connect(mongoURI, {
   process.exit(1);
 });
 
-// Modelo simples para "usuarios"
 const Usuario = mongoose.model('Usuario', new mongoose.Schema({
   nome: String,
   email: String,
 }));
 
-// Rota GET básica
 app.get('/', (req, res) => {
   res.send('Olá, mundo! Seu servidor Node.js está rodando e conectado ao MongoDB.');
 });
 
-// Rota POST para criar usuário
 app.post('/usuarios', async (req, res) => {
   const { nome, email } = req.body;
 
@@ -57,7 +50,6 @@ app.post('/usuarios', async (req, res) => {
   }
 });
 
-// Rota GET para listar todos os usuários
 app.get('/usuarios', async (req, res) => {
   try {
     const usuarios = await Usuario.find();
@@ -67,7 +59,36 @@ app.get('/usuarios', async (req, res) => {
   }
 });
 
-// Inicializando o servidor
+app.delete('/usuarios/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Usuario.findByIdAndDelete(id);
+    res.json({ message: 'Usuário deletado com sucesso' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao deletar usuário', error: err.message });
+  }
+});
+
+app.put('/usuarios/:id', async (req, res) => {
+  const { nome, email } = req.body;
+  const { id } = req.params;
+
+  if (!nome || !email) {
+    return res.status(400).json({ message: 'Nome e email são obrigatórios' });
+  }
+
+  try {
+    const usuarioAtualizado = await Usuario.findByIdAndUpdate(
+      id,
+      { nome, email },
+      { new: true }
+    );
+    res.json({ message: 'Usuário atualizado com sucesso', usuario: usuarioAtualizado });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao atualizar usuário', error: err.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
