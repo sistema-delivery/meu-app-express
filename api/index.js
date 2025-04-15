@@ -97,18 +97,19 @@ app.put('/usuarios/:id', async (req, res) => {
 
 // Integração com Mercado Pago para criar pagamento via Pix
 app.post('/mp-pix', async (req, res) => {
-  const { valor, nome, email } = req.body;
-  if (!valor || !nome || !email) {
-    return res.status(400).json({ message: 'Valor, nome e email são obrigatórios' });
+  const { valor } = req.body;
+  if (!valor) {
+    return res.status(400).json({ message: 'Valor é obrigatório' });
   }
 
+  // Utiliza dados fixos para o pagador, pois não serão enviados nome e email via requisição
   const payment_data = {
     transaction_amount: valor,
     description: "Cobrança via Pix",
     payment_method_id: "pix", // Especifica o método Pix
     payer: {
-      email: email,
-      first_name: nome,
+      email: "cliente@example.com", // Valor fixo
+      first_name: "Cliente"           // Valor fixo
     }
   };
 
@@ -130,11 +131,7 @@ app.post('/mp-pix', async (req, res) => {
 app.post('/webhook/mp', (req, res) => {
   const notificacao = req.body;
   console.log("Notificação recebida do Mercado Pago:", notificacao);
-
-  // Aqui você pode, por exemplo, atualizar o status do pagamento no seu banco de dados.
-  // Se desejar validar a origem da notificação, implemente a verificação de assinaturas ou cabeçalhos aqui.
-
-  // Responde com 200 OK para confirmar o recebimento.
+  // Aqui você pode implementar lógica para atualizar o status do pagamento, se necessário.
   res.status(200).send("Notificação recebida");
 });
 
