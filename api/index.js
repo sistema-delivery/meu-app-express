@@ -27,7 +27,7 @@ mongoose.connect(mongoURI, {
 });
 
 // Configuração do Mercado Pago
-// Certifique-se de ter configurado a variável MP_ACCESS_TOKEN na Vercel com seu Access Token do Mercado Pago.
+// Certifique-se de ter configurado a variável MP_ACCESS_TOKEN na Vercel (ou outro ambiente) com seu Access Token do Mercado Pago.
 mercadopago.configure({
   access_token: process.env.MP_ACCESS_TOKEN,
 });
@@ -97,19 +97,18 @@ app.put('/usuarios/:id', async (req, res) => {
 
 // Integração com Mercado Pago para criar pagamento via Pix
 app.post('/mp-pix', async (req, res) => {
-  const { valor } = req.body;
+  const { valor, nome, email } = req.body;
   if (!valor) {
     return res.status(400).json({ message: 'Valor é obrigatório' });
   }
 
-  // Utiliza dados fixos para o pagador, pois não serão enviados nome e email via requisição
   const payment_data = {
     transaction_amount: valor,
     description: "Cobrança via Pix",
     payment_method_id: "pix", // Especifica o método Pix
     payer: {
-      email: "cliente@example.com", // Valor fixo
-      first_name: "Cliente"           // Valor fixo
+      email: email || "cliente@example.com",
+      first_name: nome || "Cliente"
     }
   };
 
