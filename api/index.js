@@ -115,15 +115,9 @@ app.post('/mp-pix', async (req, res) => {
   try {
     const paymentResponse = await mercadopago.payment.create(payment_data);
     const { point_of_interaction } = paymentResponse.body;
-    // Tenta acessar os dados de transação dentro de transaction_data; se não existir, usa point_of_interaction direto.
-    const pixData = point_of_interaction.transaction_data || point_of_interaction;
-
     res.json({
       message: 'Pagamento criado com sucesso!',
-      pix: {
-        qr_code_base64: pixData.qr_code_base64,
-        copy_and_paste: pixData.copy_and_paste
-      },
+      pix: point_of_interaction,
       payment: paymentResponse.body,
     });
   } catch (err) {
