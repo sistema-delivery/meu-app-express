@@ -1,5 +1,3 @@
-### `server.js` (API completa com Pix + copia&cola + static de testes)
-```js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -221,4 +219,3 @@ app.listen(port, () => {
   </script>
 </body>
 </html>
-```
