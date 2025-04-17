@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const mercadopago = require('mercadopago');
 
@@ -9,115 +8,91 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Conexão com o MongoDB
-typeof process.env.MONGO_URI === 'undefined' && console.error('ERRO: variável MONGO_URI não definida.');
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('Conectado ao MongoDB!'))
-.catch(err => {
-  console.error('Erro ao conectar no MongoDB:', err);
+// Configuração Mercado Pago (defina MP_ACCESS_TOKEN no .env ou no seu ambiente)
+if (!process.env.MP_ACCESS_TOKEN) {
+  console.error('ERRO: MP_ACCESS_TOKEN não definido.');
   process.exit(1);
-});
+}
+mercadopago.configure({ access_token: process.env.MP_ACCESS_TOKEN });
 
-// Configuração do Mercado Pago
-mercadopago.configure({
-  access_token: process.env.MP_ACCESS_TOKEN,
-});
-
-// Modelo de Usuário
-const Usuario = mongoose.model('Usuario', new mongoose.Schema({
-  nome: String,
-  email: String,
-}));
-
-// Rotas de exemplo
+// Rota raiz devolvendo HTML + JS
 app.get('/', (req, res) => {
-  res.send('Servidor rodando com Node.js, MongoDB e Mercado Pago!');
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Teste Pix Local</title>
+      <style>
+        body { font-family: Arial, sans-serif; max-width:400px; margin:2rem auto; padding:1rem; }
+        input, button { width:100%; padding:0.5rem; margin-top:0.5rem; }
+        #resultado { display:none; margin-top:1rem; text-align:center; }
+        pre { background:#f5f5f5; padding:0.5rem; word-break:break-all; }
+      </style>
+    </head>
+    <body>
+      <h1>Gerar Pix</h1>
+      <form id="pixForm">
+        <input type="number" step="0.01" name="valor" placeholder="Valor (ex:10.50)" required>
+        <input type="text" name="nome" placeholder="Nome do pagador">
+        <input type="email" name="email" placeholder="Email do pagador">
+        <button type="submit">Gerar Pix</button>
+      </form>
+      <div id="resultado">
+        <h2>QR Code</h2>
+        <img id="qr" src="" alt="QR Code Pix"><h3>Copia e Cola</h3>
+        <pre id="code"></pre>
+        <button id="copy">Copiar</button>
+      </div>
+      <script>
+        const form = document.getElementById('pixForm');
+        const resDiv = document.getElementById('resultado');
+        const qrImg = document.getElementById('qr');
+        const codeEl = document.getElementById('code');
+        const btnCopy = document.getElementById('copy');
+
+        form.addEventListener('submit', async e => {
+          e.preventDefault();
+          const fd = new FormData(form);
+          const body = { valor: +fd.get('valor'), nome: fd.get('nome'), email: fd.get('email') };
+          try {
+            const r = await fetch('/mp-pix', {
+              method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+            });
+            if(!r.ok) throw new Error(r.status);
+            const d = await r.json();
+            qrImg.src = d.qr_code_base64;
+            codeEl.textContent = d.copia_e_cola;
+            resDiv.style.display = 'block';
+          } catch(err) {
+            alert('Erro: '+err);
+          }
+        });
+        btnCopy.addEventListener('click', ()=> navigator.clipboard.writeText(codeEl.textContent));
+      </script>
+    </body>
+    </html>
+  `);
 });
 
-// CRUD de Usuários
-app.post('/usuarios', async (req, res) => {
-  const { nome, email } = req.body;
-  if (!nome || !email) return res.status(400).json({ message: 'Nome e email são obrigatórios' });
-  try {
-    const usuario = new Usuario({ nome, email });
-    await usuario.save();
-    res.status(201).json({ message: 'Usuário criado', usuario });
-  } catch (err) {
-    res.status(500).json({ message: 'Erro ao salvar usuário', error: err.message });
-  }
-});
-
-app.get('/usuarios', async (req, res) => {
-  try {
-    const usuarios = await Usuario.find();
-    res.json(usuarios);
-  } catch (err) {
-    res.status(500).json({ message: 'Erro ao listar usuários', error: err.message });
-  }
-});
-
-app.put('/usuarios/:id', async (req, res) => {
-  const { id } = req.params;
-  const { nome, email } = req.body;
-  if (!nome || !email) return res.status(400).json({ message: 'Nome e email são obrigatórios' });
-  try {
-    const usuario = await Usuario.findByIdAndUpdate(id, { nome, email }, { new: true });
-    res.json({ message: 'Usuário atualizado', usuario });
-  } catch (err) {
-    res.status(500).json({ message: 'Erro ao atualizar usuário', error: err.message });
-  }
-});
-
-app.delete('/usuarios/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await Usuario.findByIdAndDelete(id);
-    res.json({ message: 'Usuário deletado' });
-  } catch (err) {
-    res.status(500).json({ message: 'Erro ao deletar usuário', error: err.message });
-  }
-});
-
-// Integração Pix via Mercado Pago
+// Endpoint Pix via Mercado Pago
 app.post('/mp-pix', async (req, res) => {
   const { valor, nome, email } = req.body;
-  if (!valor) return res.status(400).json({ message: 'Valor é obrigatório' });
-
-  const payment_data = {
-    transaction_amount: valor,
-    description: 'Cobrança via Pix',
-    payment_method_id: 'pix',
-    payer: {
-      email: email || 'cliente@example.com',
-      first_name: nome || 'Cliente'
-    }
-  };
-
+  if (!valor) return res.status(400).json({ error: 'Valor obrigatório' });
   try {
-    const response = await mercadopago.payment.create(payment_data);
-    const tx = response.body.point_of_interaction.transaction_data;
-
-    res.json({
-      message: 'Pagamento criado com sucesso!',
-      copia_e_cola: tx.qr_code,
-      qr_code_base64: `data:image/png;base64,${tx.qr_code_base64}`,
-      ticket_url: tx.ticket_url,
-      payment: response.body
+    const p = await mercadopago.payment.create({
+      transaction_amount: valor,
+      description: 'Cobrança Pix',
+      payment_method_id: 'pix',
+      payer: { email: email||'cliente@ex.com', first_name: nome||'Cliente' }
     });
-  } catch (err) {
-    console.error('Erro ao criar pagamento Pix:', err);
-    res.status(500).json({ message: 'Erro ao criar pagamento Pix', error: err.message });
+    const tx = p.body.point_of_interaction.transaction_data;
+    res.json({ qr_code_base64:`data:image/png;base64,${tx.qr_code_base64}`, copia_e_cola:tx.qr_code });
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
   }
 });
 
-// Webhook Mercado Pago
-app.post('/webhook/mp', (req, res) => {
-  console.log('Notificação Mercado Pago:', req.body);
-  res.sendStatus(200);
-});
-
-// Inicia servidor
-app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+app.listen(port, () => console.log(`Servidor ouvindo em http://localhost:${port}`));
