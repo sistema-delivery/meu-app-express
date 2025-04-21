@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const mercadopago = require('mercadopago');
+const path = require('path');  // ← necessário para servir arquivos estáticos
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -10,7 +11,10 @@ app.use(cors());
 app.use(express.json());
 
 // Conexão com o MongoDB
-typeof process.env.MONGO_URI === 'undefined' && console.error('ERRO: A variável MONGO_URI não está definida.') && process.exit(1);
+if (typeof process.env.MONGO_URI === 'undefined') {
+  console.error('ERRO: A variável MONGO_URI não está definida.');
+  process.exit(1);
+}
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
@@ -27,13 +31,36 @@ mercadopago.configure({
   access_token: process.env.MP_ACCESS_TOKEN,
 });
 
+// ---- Configuração do Painel Admin ---- //
+// Redireciona /admin para o dashboard
+app.get('/admin', (req, res) => {
+  res.redirect('/admin/pages/dashboard.html');
+});
+
+// Serve HTML do painel
+app.use(
+  '/admin/pages',
+  express.static(path.join(__dirname, 'admin/pages'))
+);
+
+// Serve CSS e JS do painel
+app.use(
+  '/admin/css',
+  express.static(path.join(__dirname, 'admin/public/css'))
+);
+app.use(
+  '/admin/js',
+  express.static(path.join(__dirname, 'admin/public/js'))
+);
+// -------------------------------------- //
+
 // Modelo simples para "usuarios"
 const Usuario = mongoose.model('Usuario', new mongoose.Schema({
   nome: String,
   email: String,
 }));
 
-// Rota GET básica
+// Rota GET básica (hello-world/api raiz)
 app.get('/', (req, res) => {
   res.send('Olá, mundo! Seu servidor Node.js está rodando e conectado ao MongoDB.');
 });
@@ -110,7 +137,6 @@ app.post('/mp-pix', async (req, res) => {
   try {
     const paymentResponse = await mercadopago.payment.create(payment_data);
     const { point_of_interaction } = paymentResponse.body;
-    // Retorna também o transaction_id para polling
     res.json({
       message: 'Pagamento criado com sucesso!',
       pix: point_of_interaction,
@@ -128,7 +154,7 @@ app.get('/mp-pix/status/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const mpResponse = await mercadopago.payment.get(id);
-    const status = mpResponse.body.status; // ex: 'pending', 'approved', etc.
+    const status = mpResponse.body.status;
     res.json({
       pago: status === 'approved',
       status
@@ -143,7 +169,7 @@ app.get('/mp-pix/status/:id', async (req, res) => {
 app.post('/webhook/mp', (req, res) => {
   const notificacao = req.body;
   console.log('Notificação recebida do Mercado Pago:', notificacao);
-  // Implemente lógica para atualizar status de pagamento em seu BD, se desejar
+  // Lógica para atualizar status de pagamento no BD
   res.status(200).send('Notificação recebida');
 });
 
