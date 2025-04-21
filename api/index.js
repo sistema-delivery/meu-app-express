@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const mercadopago = require('mercadopago');
-const path = require('path');  // ← necessário para servir arquivos estáticos
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -32,18 +32,14 @@ mercadopago.configure({
 });
 
 // ---- Configuração do Painel Admin ---- //
-// Redireciona /admin para o dashboard
-app.get('/admin', (req, res) => {
-  res.redirect('/admin/pages/dashboard.html');
-});
-
-// Serve HTML do painel
+// Serve HTML e assets do painel em /admin
 app.use(
-  '/admin/pages',
-  express.static(path.join(__dirname, 'admin/pages'))
+  '/admin',
+  express.static(path.join(__dirname, 'admin/pages'), {
+    index: 'dashboard.html',
+    extensions: ['html'],
+  })
 );
-
-// Serve CSS e JS do painel
 app.use(
   '/admin/css',
   express.static(path.join(__dirname, 'admin/public/css'))
@@ -60,7 +56,7 @@ const Usuario = mongoose.model('Usuario', new mongoose.Schema({
   email: String,
 }));
 
-// Rota GET básica (hello-world/api raiz)
+// Rota GET básica
 app.get('/', (req, res) => {
   res.send('Olá, mundo! Seu servidor Node.js está rodando e conectado ao MongoDB.');
 });
@@ -165,14 +161,14 @@ app.get('/mp-pix/status/:id', async (req, res) => {
   }
 });
 
-// Endpoint de Webhook para receber notificações do Mercado Pago
+// Webhook Mercado Pago
 app.post('/webhook/mp', (req, res) => {
   const notificacao = req.body;
   console.log('Notificação recebida do Mercado Pago:', notificacao);
-  // Lógica para atualizar status de pagamento no BD
   res.status(200).send('Notificação recebida');
 });
 
+// Inicia servidor
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
